@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sun Oct  9 11:22:02 2022
+Created on Sun Oct  3 18:09:15 2021
 
-@author: loren
+@author: Mauro
 """
 import gurobipy as gp
 from gurobipy import GRB
@@ -35,7 +35,7 @@ def read_xlsx(file_path, sheet_name='Foglio1'):
         except IndexError:
             break
     products = products[:-1]  # removes the last col
-    print("Products = ", products)
+    #print("Products = ", products)
 
     # Reads the profits
     profits = {j : 0 for j in products}
@@ -43,7 +43,7 @@ def read_xlsx(file_path, sheet_name='Foglio1'):
     for j in products:
         profits[j] = sh.cell_value(1, col)
         col = col + 1
-    print("Profits = ", profits)
+    #print("Profits = ", profits)
 
 
     # Reads the machines 
@@ -56,7 +56,7 @@ def read_xlsx(file_path, sheet_name='Foglio1'):
             m = str(sh.cell_value(row, 0))
         except IndexError:
             break
-    print("Machines = ", machines)
+    #print("Machines = ", machines)
 
 
     # Reads the matrix of production times
@@ -69,7 +69,7 @@ def read_xlsx(file_path, sheet_name='Foglio1'):
     col = len(products) + 1
     for row_idx, m in enumerate(machines):
         numMachines.append(sh.cell_value(row_idx + 2, col))
-    print("NumMachines = ", numMachines)
+    #print("NumMachines = ", numMachines)
 
     # Reads the periods
     row = 2
@@ -80,7 +80,7 @@ def read_xlsx(file_path, sheet_name='Foglio1'):
             t = str(sh.cell_value(row, 0))
         except IndexError:
             break
-    #
+    
     rowSales = row
     row = row + 1
     t = str(sh.cell_value(row, 0))
@@ -92,7 +92,7 @@ def read_xlsx(file_path, sheet_name='Foglio1'):
         except IndexError:
             break
 
-    print("Periods = ", periods)
+    #print("Periods = ", periods)
 
     # Reads the matrix of maximum demands
     MAXS = {(t, j): 0 for t in periods for j in products}
@@ -113,61 +113,100 @@ def read_xlsx(file_path, sheet_name='Foglio1'):
             break
 
     rowUnav = row 
-    #
+    
     MC = {(m, t): 0 for m in machines for t in periods}   
     
     for row_idx, t in enumerate(periods):
         for col_idx, m in enumerate(machines):
             MC[m, t] = numMachines[col_idx] - float(sh.cell_value(row_idx + rowUnav + 1, col_idx + 1))
-    #
-    print("Available machines",MC)
+    
+    #print("Available machines",MC)
      
     return products, machines, periods, A, profits, MAXS, MC
 
 
-def make_model(products, machines, periods, A, profits, MAXS, MC, model_name='MP01'):
+def prev_month(t):
+    if t == 'January':
+        return 'January'
+
+    if t == 'February':
+        return 'January'
     
-    # create the model
+    if t == 'March':
+        return 'February'
+    
+    if t == 'April':
+        return 'March'
+    
+    if t == 'May':
+        return 'April'
+    
+    if t == 'June':
+        return 'May'
+
+
+
+def make_model(products, machines, periods, A, profits, MAXS, MC, model_name='ProductionMix'):
+    
     m = gp.Model(model_name)
     
-    # variables
-    x = m.addVars(periods, product, vtype=GRB.CONTINUOUS, name="x")
+    # Variables
+    x = m.addVars(periods, products, vtype=GRB.INTEGER, name="x")
+
+    s = m.addVars(periods, products, vtype=GRB.INTEGER, name="sales")
     
-    s = m.addVars(periods, product, vtype=GRB.CONTINUOUS, name="sales")
+    i = m.addVars(periods, products, vtype=GRB.INTEGER, name="inventory")
+
+    # Constraints
+    # flow conservation - me, now I need to say that in january is all zero
+    m.addConstrs(i[t,j] == i[prev_month(t),j] + x[t,j] - s[t,j]  if t != 'January' else (i[t,j]  -x[t,j] + s[t,j] == 0) for t in periods for j in products)
     
-    i = m.addVars(periods, product, vtype=GRB.CONTINUOUS, name="inventory")
+    #flow conservation - teacher
+    # m.addConstrs((i[t,j]  -x[t,j] + s[t,j] == 0 for t in periods[0:1] for j in products))
+    # m.addConstrs((i[t,j] - i[periods[periods.index(t)-1], j] -x[t,j] + s[t,j] == 0 for t in periods[1:] for j in products))
     
+    #inventory
+    m.addConstrs((i[t,j] <= 100 for t in periods for j in products))
+    m.addConstrs(i[periods[len(periods)-1], j] == 50  for j in products)
     
-    # constraints
+    #sales
+    m.addConstrs((s[t,j] <= MAXS[t,j] for t in periods for j in products))
     
-    # flow balance
-    # idk : the main idea is that i[t,j] = i[t-1,j] + x[t,j] - s[t,j]
-    # how can I represent time - 1?
+    #time
+    m.addConstrs(((gp.quicksum(A[i,j] * x[t,j] for j in products) <= 16*24*MC[i,t]) 
+                  for t in periods for i in machines), name='TC') 
+
+    # Objective
+    m.setObjective(gp.quicksum(profits[j] * s[t,j] for t in periods for j in products) 
+                   -gp.quicksum(0.5 * i[t,j] for t in periods for j in products), GRB.MAXIMIZE)
     
-    # Inventory limits
-    m.addConstrs(i[t,j] <= 100 for t in periods for j in products)
-    m.addConstrs(i[0,j] == 0 for j in products)
-    m.addConstrs(i[periods[len(periods)-1],j] == 50 for j in products)
-      
-    # maximum sales
-    m.addConstrs(s[t,j] <= MAXS[t,j] for t in periods for j in products)
-    
-    # production time
-    m.addConstrs(quicksum(A[i,j]*x[t,j]) <= 16*24*MC[i,t] for i in machines for t in periods)    
-    
-    
+    #
+    m.write("MP_01.lp")
+    # Additional Hyperparameters
+    #m.setParam("Method", 1)
+
+    # print("PROVA")
+    # for t in enumerate(periods):
+    #     for j in products:
+    #         print(i[t[1]-1,j])
+
     return m
 
-
+###########################
+# MAIN
+###########################
 if __name__ == '__main__':
     # Read the data from the input file
-    products, machines, periods, A, profits, MAXS, MC = read_xlsx(os.path.join('C:\\Users\\loren\\Desktop', 'MP_01.xlsx'))
-    
-    model = make_model(products, machines, periods, A, profits, MAXS, MC)
+    products, machines, periods, A, profits, MAXS, MC = read_xlsx(os.path.join('C:\\Users\\loren\\Desktop\\OptimizationAlgorithms-main', 'MP_01.xls'))
 
+    # Make the model and solve
+    model = make_model(products, machines, periods, A, profits, MAXS, MC)
+    
     model.optimize()
     
-    model.write(os.path.join('C:\\Users\\loren\\Desktop', '05_productionMix.lp'))
+    model.write(os.path.join('C:\\Users\\loren\\Desktop\\OptimizationAlgorithms-main', '05_productionMix.lp'))
+
+
 
     if model.status == GRB.Status.OPTIMAL:      
         print(f'\nProfit: {model.objVal:.6f}\n')
@@ -176,15 +215,16 @@ if __name__ == '__main__':
             if i.x > 0.0001:
                 print(f'Var. {i.varName:22s} = {i.x:6.1f}')
                 
-    print()
-    
-    for t in periods:
-        for i in machines:
-            s = 'TC[' + t + ','+i+']'
-            cnt = model.getConstrByName(s)
-            print(f'{cnt.ConstrName:32s} slack = {cnt.slack:10.3f} RHS = {cnt.RHS}')
+        print()
+        
+        # Print some constraints related values
+        for t in periods:
+             for i in machines:
+                 s = 'TC[' + t + ','+i+']'
+                 cnt = model.getConstrByName(s)
+                 print(f'{cnt.ConstrName:32s} slack = {cnt.slack:10.3f} RHS = {cnt.RHS}')
             
-    
-    
-    
+    else:
+        print(">>> No feasible solution")
+        
     
