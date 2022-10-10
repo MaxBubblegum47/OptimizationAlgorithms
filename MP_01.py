@@ -204,7 +204,7 @@ if __name__ == '__main__':
     
     model.optimize()
     
-    model.write(os.path.join('C:\\Users\\loren\\Desktop\\OptimizationAlgorithms-main', '05_productionMix.lp'))
+    model.write(os.path.join('C:\\Users\\loren\\Desktop\\OptimizationAlgorithms-main', 'MP_01.lp'))
 
 
 
