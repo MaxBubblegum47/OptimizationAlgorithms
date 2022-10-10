@@ -1,9 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Oct  3 18:09:15 2021
-
-@author: Mauro
-"""
 import gurobipy as gp
 from gurobipy import GRB
 import os
