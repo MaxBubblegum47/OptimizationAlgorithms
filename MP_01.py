@@ -141,20 +141,24 @@ def prev_month(t):
 
 
 
-def make_model(products, machines, periods, A, profits, MAXS, MC, model_name='ProductionMix'):
+def make_model(products, machines, periods, A, profits, MAXS, MC, model_name='MP_01'):
     
     m = gp.Model(model_name)
     
     # Variables
+    # Product Made
     x = m.addVars(periods, products, vtype=GRB.INTEGER, name="x")
 
+    # Product Sold
     s = m.addVars(periods, products, vtype=GRB.INTEGER, name="sales")
     
+    # Product stored in inventory
     i = m.addVars(periods, products, vtype=GRB.INTEGER, name="inventory")
 
     # Constraints
     # flow conservation - me, now I need to say that in january is all zero
     m.addConstrs(i[t,j] == i[prev_month(t),j] + x[t,j] - s[t,j]  if t != 'January' else (i[t,j]  -x[t,j] + s[t,j] == 0) for t in periods for j in products)
+    m.addConstrs(i[t,j] == 50 for t in periods for j in products if t == 'June' )
     
     #flow conservation - teacher
     # m.addConstrs((i[t,j]  -x[t,j] + s[t,j] == 0 for t in periods[0:1] for j in products))
@@ -169,37 +173,28 @@ def make_model(products, machines, periods, A, profits, MAXS, MC, model_name='Pr
     
     #time
     m.addConstrs(((gp.quicksum(A[i,j] * x[t,j] for j in products) <= 16*24*MC[i,t]) 
-                  for t in periods for i in machines), name='TC') 
+                  for t in periods for i in machines)) 
 
     # Objective
     m.setObjective(gp.quicksum(profits[j] * s[t,j] for t in periods for j in products) 
                    -gp.quicksum(0.5 * i[t,j] for t in periods for j in products), GRB.MAXIMIZE)
     
-    #
+
     m.write("MP_01.lp")
-    # Additional Hyperparameters
-    #m.setParam("Method", 1)
-
-    # print("PROVA")
-    # for t in enumerate(periods):
-    #     for j in products:
-    #         print(i[t[1]-1,j])
-
+    
     return m
 
-###########################
-# MAIN
-###########################
+
 if __name__ == '__main__':
     # Read the data from the input file
-    products, machines, periods, A, profits, MAXS, MC = read_xlsx(os.path.join('C:\\Users\\loren\\Desktop\\OptimizationAlgorithms-main', 'MP_01.xls'))
+    products, machines, periods, A, profits, MAXS, MC = read_xlsx(os.path.join('/home/maxbubblegum/Desktop/OptimizationAlgorithms', 'MP_01.xls'))
 
     # Make the model and solve
     model = make_model(products, machines, periods, A, profits, MAXS, MC)
     
     model.optimize()
     
-    model.write(os.path.join('C:\\Users\\loren\\Desktop\\OptimizationAlgorithms-main', 'MP_01.lp'))
+    model.write(os.path.join('/home/maxbubblegum/Desktop/OptimizationAlgorithms', 'MP_01.lp'))
 
 
 
@@ -209,15 +204,7 @@ if __name__ == '__main__':
         for i in model.getVars():
             if i.x > 0.0001:
                 print(f'Var. {i.varName:22s} = {i.x:6.1f}')
-                
-        print()
-        
-        # Print some constraints related values
-        for t in periods:
-             for i in machines:
-                 s = 'TC[' + t + ','+i+']'
-                 cnt = model.getConstrByName(s)
-                 print(f'{cnt.ConstrName:32s} slack = {cnt.slack:10.3f} RHS = {cnt.RHS}')
+                     
             
     else:
         print(">>> No feasible solution")
