@@ -2,8 +2,8 @@
 import gurobipy as gp
 from gurobipy import GRB
 import os
-import xlrd
-
+import xlrd # <-- this not works so well, better use directly CSV
+from tabulate import tabulate
 
 
 def read_xlsx(file_path, sheet_name='Foglio1'):
@@ -196,15 +196,13 @@ if __name__ == '__main__':
     
     model.write(os.path.join('/home/maxbubblegum/Desktop/OptimizationAlgorithms', 'MP_01.lp'))
 
-
-
+    # Print in a better way, use tabulate
     if model.status == GRB.Status.OPTIMAL:      
         print(f'\nProfit: {model.objVal:.6f}\n')
         # Print single variables
         for i in model.getVars():
             if i.x > 0.0001:
                 print(f'Var. {i.varName:22s} = {i.x:6.1f}')
-                     
             
     else:
         print(">>> No feasible solution")
