@@ -1,4 +1,4 @@
-\ Model MP_01
+0\ Model MP_01
 \ LP format - for model browsing. Use MPS format to capture full model detail.
 Maximize
   10 sales[January,P1] + 6 sales[January,P2] + 8 sales[January,P3]

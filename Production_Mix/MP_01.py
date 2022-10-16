@@ -187,14 +187,14 @@ def make_model(products, machines, periods, A, profits, MAXS, MC, model_name='MP
 
 if __name__ == '__main__':
     # Read the data from the input file
-    products, machines, periods, A, profits, MAXS, MC = read_xlsx(os.path.join('/home/maxbubblegum/Desktop/OptimizationAlgorithms', 'MP_01.xls'))
+    products, machines, periods, A, profits, MAXS, MC = read_xlsx(os.path.join('/home/maxbubblegum/Desktop/OptimizationAlgorithms/Production_Mix', 'MP_01.xls'))
 
     # Make the model and solve
     model = make_model(products, machines, periods, A, profits, MAXS, MC)
     
     model.optimize()
     
-    model.write(os.path.join('/home/maxbubblegum/Desktop/OptimizationAlgorithms', 'MP_01.lp'))
+    model.write(os.path.join('/home/maxbubblegum/Desktop/OptimizationAlgorithms/Production_Mix', 'MP_01.lp'))
 
     # Print in a better way, use tabulate
     if model.status == GRB.Status.OPTIMAL:      
